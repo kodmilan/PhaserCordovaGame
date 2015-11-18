@@ -23,11 +23,6 @@ var PhaserCordovaGame;
 /// <reference path="../bower_components/phaser/typescript/phaser.d.ts" />
 var PhaserCordovaGame;
 (function (PhaserCordovaGame) {
-    //enum States { Boot, Preload, GameTitle, Main, GameOver };
-    //function getStateName(state: States) : string {
-    //    var stateName: string = States[state];
-    //    return stateName;
-    //}
     PhaserCordovaGame.stateBoot = "Boot";
     PhaserCordovaGame.statePreload = "Preload";
     PhaserCordovaGame.stateGameTitle = "GameTitle";
@@ -73,10 +68,13 @@ var PhaserCordovaGame;
             _super.call(this);
         }
         GameTitle.prototype.create = function () {
+            var _this = this;
             var logo = this.game.add.sprite(this.game.world.centerX, this.game.world.centerY, PhaserCordovaGame.assetLogo);
             logo.anchor.setTo(0.5, 0.5);
             logo.scale.setTo(0.2, 0.2);
             this.game.add.tween(logo.scale).to({ x: 1, y: 1 }, 2000, Phaser.Easing.Bounce.Out, true);
+            logo.inputEnabled = true;
+            logo.events.onInputDown.add(function () { return _this.startGame(); });
         };
         GameTitle.prototype.startGame = function () {
             this.game.state.start(PhaserCordovaGame.stateMain);
@@ -123,13 +121,60 @@ var PhaserCordovaGame;
         __extends(Main, _super);
         function Main() {
             _super.call(this);
+            this.rowCount = 5;
+            this.colCount = 5;
+            this.tileWidth = 255;
+            this.tileHeight = 255;
+            this.tiles = [];
         }
         Main.prototype.create = function () {
+            //this.bird = this.game.add.sprite(this.game.world.centerX, this.game.world.centerY, assetBirdSpriteSheet, 0);
+            //this.bird.scale.setTo(5, 5);
+            //this.bird.anchor.setTo(0.5, 0.5);
+            //this.bird.animations.add("fly");
+            //this.bird.play("fly", 30, true);
+            this.tileScale = this.getTileScale();
+            this.setUpGrid();
         };
         Main.prototype.update = function () {
         };
         Main.prototype.gameOver = function () {
             this.game.state.start(PhaserCordovaGame.stateGameOver);
+        };
+        Main.prototype.getTileScale = function () {
+            var ww = this.game.world.width;
+            var wh = this.game.world.height;
+            var tilesWidth = this.colCount * this.tileWidth;
+            var tilesHeight = this.rowCount * this.tileHeight;
+            // Should width or height control scaling? Grid must fit for both portrait and landscape
+            var widthScale = ww / tilesWidth;
+            var heightScale = wh / tilesHeight;
+            return widthScale < heightScale ? widthScale : heightScale;
+        };
+        Main.prototype.setUpGrid = function () {
+            for (var row = 0; row < this.rowCount; row++) {
+                for (var col = 0; col < this.colCount; col++) {
+                    this.setupTile(row, col);
+                }
+            }
+        };
+        Main.prototype.setupTile = function (row, col) {
+            var _this = this;
+            var index = row * this.colCount + col;
+            var t = new PhaserCordovaGame.Tile(this.game, row, col, this.tileWidth, this.tileScale, function (sprite, pointer) {
+                var tile = sprite;
+                _this.flipX(tile);
+            });
+            this.tiles[index] = t;
+            return this.tiles[index];
+        };
+        Main.prototype.flipX = function (tile) {
+            tile.visible = false;
+            this.letterH = this.game.add.sprite(tile.x, tile.y, PhaserCordovaGame.assetHSpriteSheet, 0);
+            this.letterH.scale.setTo(this.tileScale, this.tileScale);
+            this.letterH.anchor.setTo(0, 0.05);
+            this.letterH.animations.add("flipH", [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], 30, false);
+            this.letterH.play("flipH");
         };
         return Main;
     })(Phaser.State);
@@ -138,6 +183,9 @@ var PhaserCordovaGame;
 var PhaserCordovaGame;
 (function (PhaserCordovaGame) {
     PhaserCordovaGame.assetLogo = "logo";
+    PhaserCordovaGame.assetBirdSpriteSheet = "birdSpriteSheet";
+    PhaserCordovaGame.assetHSpriteSheet = "assetH";
+    PhaserCordovaGame.assetTileBack = "tileBack";
     var Preload = (function (_super) {
         __extends(Preload, _super);
         function Preload() {
@@ -145,6 +193,9 @@ var PhaserCordovaGame;
         }
         Preload.prototype.preload = function () {
             this.game.load.image(PhaserCordovaGame.assetLogo, "images/phaser2.png");
+            this.game.load.spritesheet(PhaserCordovaGame.assetBirdSpriteSheet, "images/robin-782x1024.png", 156, 205, 22);
+            this.game.load.image(PhaserCordovaGame.assetTileBack, "images/tileback.png");
+            this.game.load.spritesheet(PhaserCordovaGame.assetHSpriteSheet, "images/H - nB x nH - 12n 255 x 2n 275.png", 255, 275, 24);
         };
         Preload.prototype.create = function () {
             this.game.state.start(PhaserCordovaGame.stateGameTitle);
@@ -152,5 +203,23 @@ var PhaserCordovaGame;
         return Preload;
     })(Phaser.State);
     PhaserCordovaGame.Preload = Preload;
+})(PhaserCordovaGame || (PhaserCordovaGame = {}));
+var PhaserCordovaGame;
+(function (PhaserCordovaGame) {
+    var Tile = (function (_super) {
+        __extends(Tile, _super);
+        function Tile(game, row, col, origSize, scale, clickHandler) {
+            var tileWidth = origSize * scale;
+            var tileHeight = origSize * scale;
+            _super.call(this, game, col * tileWidth, row * tileHeight, PhaserCordovaGame.assetTileBack);
+            this.scale.setTo(scale);
+            this.anchor.setTo(0, 0);
+            this.inputEnabled = true;
+            this.events.onInputDown.add(clickHandler, this);
+            game.add.existing(this);
+        }
+        return Tile;
+    })(Phaser.Sprite);
+    PhaserCordovaGame.Tile = Tile;
 })(PhaserCordovaGame || (PhaserCordovaGame = {}));
 //# sourceMappingURL=appBundle.js.map
